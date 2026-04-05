@@ -281,11 +281,14 @@ class SerpensSimulation(rebound.Simulation):
         # Note: We no longer register these parameters with REBOUNDx
         # as they are now stored in the h5 file
 
+        # Keys that are SERPENS metadata, not REBOUND particle parameters
+        _non_rebound_keys = {'r_schwarzschild', 'r_isco'}
+
         for k, v in GLOBAL_PARAMETERS.get('celest', {}).items():
             if not type(v) == dict:
                 continue
             else:
-                v_copy = v.copy()
+                v_copy = {key: val for key, val in v.items() if key not in _non_rebound_keys}
                 if self.N == 0:
                     self.add(**v_copy, hash=k)
                     self.particles[0].params["radiation_source"] = 1
@@ -293,6 +296,33 @@ class SerpensSimulation(rebound.Simulation):
                     self.add(**v_copy, hash=k)
 
         self.move_to_com()  # Center of mass coordinate-system (Jacobi coordinates without this line)
+
+        # General Relativity corrections
+        if GLOBAL_PARAMETERS.get('gr_enabled', False):
+            gr = self.rebx.load_force("gr_full")
+            self.rebx.add_force(gr)
+            gr.params["c"] = 3.e8
+
+            # Designate the GR source (massive body generating the field)
+            gr_source_name = GLOBAL_PARAMETERS.get('gr_source')
+            if gr_source_name is not None:
+                self.particles[gr_source_name].params["gr_source"] = 1
+            else:
+                # Default: first particle is the GR source
+                self.particles[0].params["gr_source"] = 1
+
+            # Compute and store Schwarzschild radius and ISCO for particle removal
+            celest = GLOBAL_PARAMETERS.get('celest', {})
+            gr_body = celest.get(gr_source_name, {}) if gr_source_name else {}
+            if 'r_schwarzschild' in gr_body:
+                self._r_schwarzschild = gr_body['r_schwarzschild']
+                self._r_isco = gr_body.get('r_isco', 3 * gr_body['r_schwarzschild'])
+            else:
+                # Calculate from mass of the GR source
+                source_particle = self.particles[gr_source_name] if gr_source_name else self.particles[0]
+                self._r_schwarzschild = 2 * self.G * source_particle.m / (3.e8 ** 2)
+                self._r_isco = 3 * self._r_schwarzschild  # Schwarzschild ISCO = 6GM/c² = 3 r_s
+            print(f"GR enabled: r_schwarzschild = {self._r_schwarzschild:.2e} m, r_isco = {self._r_isco:.2e} m")
 
         # Init save
         os.makedirs('simdata', exist_ok=True)
@@ -568,7 +598,19 @@ class SerpensSimulation(rebound.Simulation):
 
         boundary0 = GLOBAL_PARAMETERS.get("r_max", 10) * self.particles[orbit_object].orbit(primary=primary).a
 
+        # Determine GR inner boundary (ISCO) if GR is enabled
+        gr_enabled = GLOBAL_PARAMETERS.get('gr_enabled', False)
+        if gr_enabled and hasattr(self, '_r_isco'):
+            gr_source_name = GLOBAL_PARAMETERS.get('gr_source')
+            gr_source = self.particles[gr_source_name] if gr_source_name else self.particles[0]
+            gr_source_pos = np.asarray(gr_source.xyz)
+            inner_boundary = self._r_isco
+        else:
+            gr_source_pos = None
+            inner_boundary = None
+
         remove = []
+        remove_inner = []
         for particle in self.particles[self.N_active:]:
             particle_distance = np.linalg.norm(np.asarray(particle.xyz) - np.asarray(primary.xyz))
 
@@ -581,7 +623,20 @@ class SerpensSimulation(rebound.Simulation):
                 finally:
                     continue
 
-        print(f"Removing {len(remove)} particles.")
+            # Remove particles that fall inside the ISCO
+            if inner_boundary is not None:
+                dist_to_bh = np.linalg.norm(np.asarray(particle.xyz) - gr_source_pos)
+                if dist_to_bh < inner_boundary:
+                    try:
+                        remove_inner.append(particle.hash)
+                    except RuntimeError:
+                        pass
+
+        if remove_inner:
+            print(f"Removing {len(remove_inner)} particles inside ISCO.")
+        print(f"Removing {len(remove)} particles beyond outer boundary.")
+        for particle_hash in remove_inner:
+            self.remove(hash=particle_hash)
         for particle_hash in remove:
             self.remove(hash=particle_hash)
 

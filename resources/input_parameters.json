@@ -8,7 +8,9 @@
       "r_max": 4,
       "random_walk": false,
       "radiation_pressure_shield": false,
-      "fix_source_circular_orbit": true
+      "fix_source_circular_orbit": true,
+      "gr_enabled": false,
+      "gr_source": null
     },
     "THERMAL_EVAP_PARAMETERS": {
       "source_temp_max": 2703,

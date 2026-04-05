@@ -77,5 +77,18 @@
     "SYSTEM-NAME": "55-Cnc-e",
     "star": {"m": 1.8e+30, "r": 6.56e8},
     "planet": {"m": 4.772e25, "r": 1.196e7, "a": 2.31e9, "primary": "star"}
+  },
+  {
+    "SYSTEM-NAME": "StellarBH-10",
+    "SYSTEM-DESCRIPTION": "10 solar mass stellar black hole with companion star and accretion disk source",
+    "bh": {"m": 1.988e+31, "r": 29542, "r_schwarzschild": 29542, "r_isco": 88627},
+    "companion": {"m": 1.988e+30, "r": 696340000, "a": 1.5e+12, "e": 0.1, "primary": "bh"},
+    "disk_source": {"m": 1.0e+10, "r": 500000, "a": 5.0e+8, "e": 0.01, "primary": "bh"}
+  },
+  {
+    "SYSTEM-NAME": "SgrA",
+    "SYSTEM-DESCRIPTION": "Sagittarius A* supermassive black hole with S2-like orbiting star",
+    "bh": {"m": 8.26e+36, "r": 1.22e+10, "r_schwarzschild": 1.22e+10, "r_isco": 3.66e+10},
+    "S2": {"m": 2.78e+31, "r": 4.87e+9, "a": 1.51e+14, "e": 0.8839, "inc": 2.34, "primary": "bh"}
   }
 ]
