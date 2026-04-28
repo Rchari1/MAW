@@ -117,6 +117,44 @@ def random_thermal_velocity(species_id, temp):
     return vel
 
 
+def random_wind_velocity(species_id, n_samples=1, **kwargs):
+    """
+    Generate stellar-wind launch velocities for a thermally-driven (Parker-like) wind.
+
+    The velocity has two components:
+        1. Coronal thermal velocity: Maxwell-Boltzmann at coronal temperature T_corona.
+        2. Radial bulk velocity: a deterministic outward "asymptotic" wind speed v_inf
+           applied along the surface normal (radially outward from the source center).
+
+    Returned velocities live in the source-local frame (radial direction = +x_local).
+
+    Keyword Arguments
+    -----------------
+    T_corona : float
+        Coronal temperature [K]. Default 1.5e6 (solar coronal value).
+    v_inf : float
+        Asymptotic radial wind speed [m/s]. Default 4e5 (typical solar wind ~400 km/s).
+    """
+    species = [s for s in GLOBAL_PARAMETERS.get('species') if s.id == species_id][0]
+
+    T_corona = kwargs.get("T_corona",
+                          GLOBAL_PARAMETERS.get('wind_T_corona', 1.5e6))
+    v_inf = kwargs.get("v_inf",
+                       GLOBAL_PARAMETERS.get('wind_v_inf', 4.0e5))
+
+    k_B = 1.380649e-23
+    sigma = np.sqrt(k_B * T_corona / species.m)
+
+    # Thermal velocity in 3D (Gaussian per component, isotropic)
+    v_thermal = norm.rvs(scale=sigma, size=(n_samples, 3))
+
+    # Radial bulk velocity along source-local +x (rotated outward later via lat/long rotation)
+    bulk = np.zeros((n_samples, 3))
+    bulk[:, 0] = v_inf
+
+    return v_thermal + bulk
+
+
 def random_sputter_velocity(species_id, n_samples=1):
     #Params = Parameters()
     #species = Params.get_species(id=species_id)
@@ -199,7 +237,7 @@ def generate_particles(species_id, process, source, source_r, n_samples=1, **kwa
         Maximum temperature on the source (noon)
     """
 
-    valid_process = {"thermal": 0, "sputter": 1}
+    valid_process = {"thermal": 0, "sputter": 1, "wind": 2}
     assert process in valid_process, "Invalid escaping mechanism encountered in particle creation"
 
     temp_min = kwargs.get("temp_min", GLOBAL_PARAMETERS.get('source_temp_min', 0))
@@ -210,9 +248,12 @@ def generate_particles(species_id, process, source, source_r, n_samples=1, **kwa
                                                       b_long=2 * np.pi, n_samples=n_samples)
         ran_temp = random_temperature(source, temp_min, temp_max, latitudes, longitudes)
         velocities_not_rotated = random_thermal_velocity(species_id, ran_temp)
-    else:   # sputter
+    elif valid_process[process] == 1:   # sputter
         positions, latitudes, longitudes = random_pos(source_r, lat_dist="uniform", long_dist="uniform", n_samples=n_samples)
         velocities_not_rotated = random_sputter_velocity(species_id, n_samples=n_samples)
+    else:   # wind
+        positions, latitudes, longitudes = random_pos(source_r, lat_dist="uniform", long_dist="uniform", n_samples=n_samples)
+        velocities_not_rotated = random_wind_velocity(species_id, n_samples=n_samples, **kwargs)
 
     cos_latitudes = np.cos(latitudes)
     sin_latitudes = np.sin(latitudes)

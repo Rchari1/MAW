@@ -104,6 +104,8 @@ def create(source_state, source_r, phys_process, species):
         n = species.n_th
     elif phys_process == "sputter":
         n = species.n_sp
+    elif phys_process == "wind":
+        n = getattr(species, "n_wind", 0)
     else:
         raise ValueError("Invalid process in particle creation.")
 
@@ -412,12 +414,17 @@ class SerpensSimulation(rebound.Simulation):
                 # Generate particles only if maximum generation is not reached
                 if GLOBAL_PARAMETERS.get("gen_max") is None or self.serpens_iter < GLOBAL_PARAMETERS.get("gen_max"):
                     for species in GLOBAL_PARAMETERS.get('species', []):
-                        # Generate thermal and sputter particles
+                        # Generate thermal, sputter, and wind particles
                         rth = create(source_state, source.r, "thermal", species)
                         rsp = create(source_state, source.r, "sputter", species)
+                        rwd = create(source_state, source.r, "wind", species)
 
                         # Combine results
-                        r = np.vstack((rth.reshape(len(rth), 6), rsp.reshape(len(rsp), 6)))
+                        r = np.vstack((
+                            rth.reshape(len(rth), 6),
+                            rsp.reshape(len(rsp), 6),
+                            rwd.reshape(len(rwd), 6),
+                        ))
 
                         # Add particles to the simulation
                         for index, coord in enumerate(r):

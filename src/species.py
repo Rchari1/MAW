@@ -30,7 +30,16 @@ class Species(SpeciesSpecifics):
         "SO2": (64, 8),
         "O+": (16, 9),
         "CO2": (44, 10),
-        "K": (39, 11)
+        "K": (39, 11),
+        "He": (4, 12),
+        "C": (12, 13),
+        "C+": (12, 14),
+        "C3+": (12, 15),
+        "N": (14, 16),
+        "Fe": (56, 17),
+        "Fe+": (56, 18),
+        "O5+": (16, 19),
+        "Si3+": (28, 20)
     }
 
     default_sput_spec = {
@@ -45,7 +54,7 @@ class Species(SpeciesSpecifics):
         "model_smyth_a": 7 / 3
     }
 
-    def __init__(self, name=None, n_th=0, n_sp=0, mass_per_sec=None, duplicate=None, **kwargs):
+    def __init__(self, name=None, n_th=0, n_sp=0, n_wind=0, mass_per_sec=None, duplicate=None, **kwargs):
         if name in self.species_info.keys():
             mass_number, species_id = self.species_info[name]
             super().__init__(mass_number, species_id)
@@ -58,6 +67,7 @@ class Species(SpeciesSpecifics):
 
         self.n_th = n_th
         self.n_sp = n_sp
+        self.n_wind = n_wind
         self.mass_per_sec = mass_per_sec
         self.name = name
 
