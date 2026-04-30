@@ -5,6 +5,13 @@ Provides post-simulation analysis utilities for star--BH binary systems:
   * Bondi-Hoyle-Lyttleton capture cross-section diagnostics
   * Observer-frame line-of-sight projection at a specified binary inclination
   * Doppler line-profile synthesis from particle velocities
+  * X-ray photoionization lifetime estimates for trace species
+  * Physical-units column-density maps via superparticle weighting
+
+References:
+  * Edgar (2004) New Astron. Reviews 48, 843 — BHL accretion review
+  * Verner et al. (1996) ApJ 465, 487 — atomic photoionization cross sections
+  * Marsch (2006) Living Reviews Solar Physics 3, 1 — kinetic stellar winds
 """
 
 import numpy as np
@@ -194,3 +201,119 @@ def doppler_line_profile(los_velocities, weights=None, rest_wavelength=None,
         wavelengths = rest_wavelength * (1.0 + v_centers / c)
 
     return v_centers, flux, wavelengths
+
+
+# ---------------------------------------------------------------------------
+# X-ray photoionization lifetimes near an accreting compact object.
+# Adopts an isotropic point-source approximation for the disk X-ray emission
+# and integrates a power-law photon spectrum over an effective species cross
+# section. Suitable for first-order lifetime estimates; for spectral-resolved
+# work this should be replaced with a Verner+1996 cross-section table.
+# ---------------------------------------------------------------------------
+
+# Approximate effective X-ray photoionization cross sections [cm^2] at ~1 keV
+# Order-of-magnitude values from Verner+1996 / Wilms+2000; sufficient for
+# methods-paper lifetime scaling.
+SPECIES_XRAY_SIGMA = {
+    'H':   6.3e-22,
+    'He':  7.4e-22,
+    'C':   2.0e-19,
+    'N':   3.7e-19,
+    'O':   5.6e-19,
+    'Fe':  3.5e-18,
+    'Si':  9.0e-19,
+}
+
+
+def xray_photoionization_lifetime(L_X, distance_to_source, sigma_X=1e-19,
+                                   mean_photon_energy_eV=1000.0):
+    """
+    Mean photoionization lifetime tau = 1 / (sigma_X * Phi_X) for a trace
+    species at given distance from an isotropic X-ray point source.
+
+    Arguments
+    ---------
+    L_X : float
+        Source X-ray luminosity [erg/s].
+    distance_to_source : float
+        Distance from the source [m].
+    sigma_X : float
+        Effective photoionization cross section at <E_photon> [cm^2].
+        Default 1e-19 (typical for low-Z metals at 1 keV).
+    mean_photon_energy_eV : float
+        Characteristic photon energy [eV]. Default 1000 (1 keV).
+
+    Returns
+    -------
+    tau : float
+        Mean lifetime [s]. Returns np.inf when L_X = 0.
+    """
+    if L_X <= 0:
+        return np.inf
+    erg_per_eV = 1.602e-12
+    distance_cm = distance_to_source * 100.0
+    mean_E = mean_photon_energy_eV * erg_per_eV
+    photon_flux = L_X / (4.0 * np.pi * distance_cm ** 2 * mean_E)   # photons/cm^2/s
+    rate = sigma_X * photon_flux
+    return 1.0 / rate
+
+
+def species_lifetime_in_disk_field(species_name, L_X, distance_to_source,
+                                     mean_photon_energy_eV=1000.0):
+    """
+    Convenience wrapper using the SPECIES_XRAY_SIGMA table.
+    """
+    sigma = SPECIES_XRAY_SIGMA.get(species_name, 1.0e-19)
+    return xray_photoionization_lifetime(L_X, distance_to_source,
+                                          sigma_X=sigma,
+                                          mean_photon_energy_eV=mean_photon_energy_eV)
+
+
+# ---------------------------------------------------------------------------
+# Physical-units column density maps.
+# Uses the SERPENS superparticle weighting:
+#     w_real_per_super = Mdot_total * t_sim / (n_per_spawn * n_spawns * m_species)
+# We pass that weight per particle to convert (count per pixel) into (cm^-2).
+# ---------------------------------------------------------------------------
+
+def column_density_map(sky_xy, weights, extent_au, n_bins=80, smooth_sigma=1.0):
+    """
+    Build a 2D column density map in [particles / cm^2] from sky-projected
+    particle positions and per-particle physical weights.
+
+    Arguments
+    ---------
+    sky_xy : (N, 2) array
+        Sky-plane positions [m].
+    weights : (N,) array
+        Real particles represented per superparticle.
+    extent_au : float
+        Half-width of the map in AU.
+    n_bins : int
+        Pixels per side.
+    smooth_sigma : float
+        Optional Gaussian smoothing sigma in pixels.
+
+    Returns
+    -------
+    H : (n_bins, n_bins) array
+        Column density [particles / cm^2] per pixel.
+    edges_au : (n_bins+1,) array
+        Pixel edges in AU.
+    """
+    AU_m = 1.496e11
+    AU_cm = AU_m * 100.0
+    half_m = extent_au * AU_m
+    edges_m = np.linspace(-half_m, half_m, n_bins + 1)
+    pixel_area_cm2 = ((edges_m[1] - edges_m[0]) * 100.0) ** 2
+
+    H, _, _ = np.histogram2d(sky_xy[:, 0], sky_xy[:, 1],
+                              bins=[edges_m, edges_m], weights=weights)
+    H = H / pixel_area_cm2
+
+    if smooth_sigma > 0:
+        from scipy.ndimage import gaussian_filter
+        H = gaussian_filter(H, sigma=smooth_sigma)
+
+    edges_au = edges_m / AU_m
+    return H, edges_au

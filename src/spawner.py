@@ -5,6 +5,99 @@ from scipy.optimize import fmin
 from scipy.stats import truncnorm, maxwell, norm, rv_continuous
 
 
+# ---------------------------------------------------------------------------
+# Physical wind-launch helpers for stellar companions in BH binaries.
+# References:
+#   - Parker (1958) ApJ 128, 664
+#   - Lamers & Cassinelli (1999) "Introduction to Stellar Winds"
+#   - Wood, Mueller, Zank, Linsky, Redfield (2005) ApJ 628, L143
+#   - Cranmer & Saar (2011) ApJ 741, 54
+# ---------------------------------------------------------------------------
+
+def parker_v_inf(T_corona, mu=0.6):
+    """
+    Asymptotic Parker (1958) isothermal-wind velocity.
+
+    For an isothermal corona at temperature T_corona with mean molecular weight
+    mu (in proton masses), the asymptotic wind speed at infinity is roughly
+    a few times the isothermal sound speed. We adopt v_inf ~ 4 * c_s, which
+    reproduces ~400 km/s for T = 1.5 MK with mu = 0.6 (solar coronal value).
+    See Lamers & Cassinelli (1999) Ch. 5 for the full critical-point analysis.
+
+    Arguments
+    ---------
+    T_corona : float
+        Coronal temperature [K].
+    mu : float
+        Mean molecular weight in units of proton mass (default 0.6 for fully
+        ionized solar abundance plasma).
+
+    Returns
+    -------
+    v_inf : float
+        Asymptotic radial wind speed [m/s].
+    """
+    k_B = 1.380649e-23
+    m_p = 1.673e-27
+    c_s = np.sqrt(k_B * T_corona / (mu * m_p))
+    return 4.0 * c_s
+
+
+def wood2005_mdot(R_star, age_Gyr=4.6, activity_scaling=True):
+    """
+    Stellar mass-loss rate from the Wood et al. (2005) X-ray flux--Mdot
+    calibration for cool main-sequence stars.
+
+    Wood+2005 found Mdot per unit area scales with stellar X-ray surface flux
+    F_X^1.34, and F_X declines with stellar age following a Skumanich-like
+    rotation evolution. The solar value is Mdot_sun ~ 2e-14 Msun/yr.
+
+    Arguments
+    ---------
+    R_star : float
+        Stellar radius [m].
+    age_Gyr : float
+        Stellar age [Gyr]. Default 4.6 (solar age).
+    activity_scaling : bool
+        If True, scale Mdot with age. If False, return area-scaled solar value.
+
+    Returns
+    -------
+    Mdot : float
+        Mass-loss rate [kg/s].
+    """
+    Mdot_solar = 2.0e-14 * 1.989e30 / (365.25 * 86400)   # kg/s
+    R_solar = 6.957e8
+    area_scaling = (R_star / R_solar) ** 2
+
+    if activity_scaling and age_Gyr > 0.7:
+        # Approximate: Mdot ~ F_X^1.34, F_X ~ age^-1.84, so Mdot ~ age^-2.5
+        # Saturated below ~0.7 Gyr (Wood+2005 Fig 2).
+        age_factor = (age_Gyr / 4.6) ** (-2.5)
+    else:
+        age_factor = 1.0
+
+    return Mdot_solar * area_scaling * age_factor
+
+
+def companion_wind_parameters(M_star, R_star, T_corona=1.5e6,
+                               age_Gyr=4.6, mu=0.6):
+    """
+    Convenience wrapper that returns (Mdot, v_inf, T_corona) derived from
+    stellar physical parameters. Use this to translate a companion description
+    into the launch parameters consumed by the wind spawner.
+
+    Returns
+    -------
+    dict with keys 'Mdot' [kg/s], 'v_inf' [m/s], 'T_corona' [K].
+    """
+    return {
+        'Mdot': wood2005_mdot(R_star, age_Gyr=age_Gyr),
+        'v_inf': parker_v_inf(T_corona, mu=mu),
+        'T_corona': T_corona,
+    }
+
+
 def random_pos(radius, lat_dist='uniform', long_dist='uniform', n_samples=1, **kwargs):
     """
     Keyword Arguments
