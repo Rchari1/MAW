@@ -122,6 +122,33 @@ class Network:
             # K
             self._network = 1.77 * 60
 
+        # BH-environment placeholder lifetimes (s). These are conservative defaults
+        # for trace species in a dormant accretion environment; users should override
+        # via the Species(... lifetime=...) kwarg or via network reactions.
+        elif id == 12:   # He
+            self._network = 1.0e10
+        elif id == 13:   # C
+            self._network = 1.0e9
+        elif id == 14:   # C+
+            self._network = 1.0e9
+        elif id == 15:   # C3+
+            self._network = 1.0e9
+        elif id == 16:   # N
+            self._network = 1.0e9
+        elif id == 17:   # Fe
+            self._network = 1.0e9
+        elif id == 18:   # Fe+
+            self._network = 1.0e9
+        elif id == 19:   # O5+
+            self._network = 1.0e9
+        elif id == 20:   # Si3+
+            self._network = 1.0e9
+
+        # Final fallback: any other ID gets a finite, very-long default lifetime so
+        # particles are not silently immortal and downstream code never sees None.
+        if self._network is None:
+            self._network = 1.0e12
+
     def reaction(self, reac):
         """
         Adds reactions to a species' network.

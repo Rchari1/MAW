@@ -56,6 +56,10 @@ class Parameters:
     def update_celest(self, celestial_name=None):
         """
         Update the 'celest' parameter with data specific to the given celestial name.
+
+        If the chosen system contains a body with `r_schwarzschild` defined (i.e. it
+        is a black-hole system), automatically enable GR and designate that body as
+        the gr_source so that fresh simulations don't silently run Newtonian.
         """
         if celestial_name is not None:
             try:
@@ -70,6 +74,14 @@ class Parameters:
                     if celest_entry:
                         # Update the 'celest' parameter with the first matching entry
                         self.params['celest'] = celest_entry[0]
+                        # Auto-enable GR if a relativistic body is present
+                        for body_name, body in celest_entry[0].items():
+                            if isinstance(body, dict) and 'r_schwarzschild' in body:
+                                self.params['gr_enabled'] = True
+                                self.params['gr_source'] = body_name
+                                # Eccentric BH binaries are incompatible with circular-orbit fixing
+                                self.params['fix_source_circular_orbit'] = False
+                                break
                     else:
                         print(f"No celestial system found with name: {celestial_name}")
             except FileNotFoundError as e:

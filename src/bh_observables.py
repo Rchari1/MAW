@@ -317,3 +317,184 @@ def column_density_map(sky_xy, weights, extent_au, n_bins=80, smooth_sigma=1.0):
 
     edges_au = edges_m / AU_m
     return H, edges_au
+
+
+# ---------------------------------------------------------------------------
+# Composition helpers — solar abundances and FIP enhancement.
+# Reference: Asplund, Grevesse, Sauval, Scott (2009), ARAA 47, 481.
+# Low-FIP elements (FIP < 10 eV) like Fe, Mg, Si are observed to be enhanced
+# by factor ~3-4 in the slow solar wind relative to photospheric abundances.
+# ---------------------------------------------------------------------------
+
+# Photospheric mass fractions (approximate, solar)
+PHOTOSPHERIC_MASS_FRACTION = {
+    'H':  0.7381,
+    'He': 0.2485,
+    'C':  2.4e-3,
+    'N':  7.0e-4,
+    'O':  5.7e-3,
+    'Si': 7.1e-4,
+    'Fe': 1.3e-3,
+}
+
+# First ionization potentials [eV]
+FIP_eV = {
+    'H': 13.60, 'He': 24.59, 'C': 11.26, 'N': 14.53,
+    'O': 13.62, 'Si': 8.15,  'Fe': 7.90,
+}
+
+
+def fip_abundances(Mdot_total, fip_factor=3.5, threshold_eV=10.0,
+                   species=None):
+    """
+    Apply FIP-effect enhancement to photospheric abundances and return per-species
+    mass-loss rates.
+
+    Low-FIP elements (FIP < threshold) get their mass fraction boosted by
+    `fip_factor`; high-FIP elements (H, He, C, N, O at solar abundances) are
+    unchanged. Resulting fractions are renormalized to preserve `Mdot_total`.
+
+    Arguments
+    ---------
+    Mdot_total : float
+        Total wind mass-loss rate [kg/s].
+    fip_factor : float
+        Enhancement factor for low-FIP elements (default 3.5).
+    threshold_eV : float
+        FIP below which an element is enhanced (default 10 eV).
+    species : list[str] or None
+        Subset of species to include. If None, returns all in PHOTOSPHERIC_MASS_FRACTION.
+
+    Returns
+    -------
+    dict
+        {species_name: Mdot_species [kg/s]}
+    """
+    if species is None:
+        species = list(PHOTOSPHERIC_MASS_FRACTION.keys())
+
+    fractions = {}
+    for s in species:
+        if s not in PHOTOSPHERIC_MASS_FRACTION:
+            continue
+        boost = fip_factor if FIP_eV.get(s, 99.0) < threshold_eV else 1.0
+        fractions[s] = PHOTOSPHERIC_MASS_FRACTION[s] * boost
+
+    norm = sum(fractions.values())
+    return {s: Mdot_total * f / norm for s, f in fractions.items()}
+
+
+# ---------------------------------------------------------------------------
+# Predicted X-ray luminosity from BHL accretion rate.
+# Includes radiative-efficiency suppression for low Mdot/Mdot_Edd (RIAF/ADAF
+# regime, Narayan & Yi 1995; Yuan & Narayan 2014).
+# ---------------------------------------------------------------------------
+
+SIGMA_T = 6.6524e-29   # Thomson cross section [m^2]
+M_PROTON = 1.673e-27   # [kg]
+
+
+def eddington_mdot(M_bh, eta=0.1):
+    """Eddington mass accretion rate [kg/s].
+
+    Mdot_Edd = L_Edd / (eta c^2) with L_Edd = 4 pi G M m_p c / sigma_T.
+    """
+    G = 6.6743e-11
+    c = 2.998e8
+    L_edd = 4.0 * np.pi * G * M_bh * M_PROTON * c / SIGMA_T
+    return L_edd / (eta * c ** 2)
+
+
+def radiative_efficiency(Mdot, M_bh, eta_thin=0.1, transition_ratio=1e-2):
+    """
+    Radiative efficiency eta(Mdot) interpolating between the standard thin-disk
+    value (eta_thin ~ 0.1) at high accretion rates and the RIAF/ADAF
+    suppressed regime where eta ∝ Mdot / Mdot_Edd at low rates.
+
+    Below `transition_ratio` x Mdot_Edd, eta declines linearly with Mdot:
+        eta(m) = eta_thin * (m / transition_ratio)
+    where m = Mdot / Mdot_Edd. For dormant BHs like Gaia BH1 this drops the
+    predicted L_X by orders of magnitude relative to the thin-disk assumption.
+
+    Reference: Narayan & Yi (1995); Yuan & Narayan (2014) ARAA.
+    """
+    Mdot_Edd = eddington_mdot(M_bh, eta=eta_thin)
+    m = Mdot / Mdot_Edd
+    if m >= transition_ratio:
+        return eta_thin
+    return eta_thin * (m / transition_ratio)
+
+
+def xray_luminosity_from_mdot(Mdot, M_bh, eta_thin=0.1):
+    """
+    Predicted X-ray luminosity from a given accretion rate, accounting for
+    ADAF suppression at low Mdot.
+
+    Returns
+    -------
+    L_X : float [erg/s]
+    """
+    c = 2.998e8
+    eta = radiative_efficiency(Mdot, M_bh, eta_thin=eta_thin)
+    L_X_SI = eta * Mdot * c ** 2          # Joules/s = W
+    return L_X_SI * 1.0e7                  # to erg/s
+
+
+# ---------------------------------------------------------------------------
+# Conservation diagnostics — for self-tests of GR + integrator behaviour.
+# ---------------------------------------------------------------------------
+
+def system_diagnostics(sim, com_reference=None):
+    """
+    Compute conservation diagnostics for the active (gravitating) bodies of a
+    SERPENS / REBOUND simulation.
+
+    Returns
+    -------
+    dict with keys:
+      'energy'    : total mechanical energy [J]
+      'L_total'   : magnitude of total angular momentum vector [kg m^2 / s]
+      'L_vec'     : (3,) angular momentum vector
+      'p_total'   : magnitude of total linear momentum [kg m/s]
+      'com_drift' : displacement of center of mass from `com_reference` [m]
+                     (or absolute COM position if com_reference is None)
+    """
+    n_active = sim.N_active if sim.N_active > 0 else sim.N
+    G = 6.6743e-11
+
+    masses = np.array([sim.particles[i].m for i in range(n_active)])
+    pos = np.array([[sim.particles[i].x, sim.particles[i].y, sim.particles[i].z]
+                    for i in range(n_active)])
+    vel = np.array([[sim.particles[i].vx, sim.particles[i].vy, sim.particles[i].vz]
+                    for i in range(n_active)])
+
+    # Kinetic + potential
+    KE = 0.5 * np.sum(masses[:, None] * vel ** 2)
+    PE = 0.0
+    for i in range(n_active):
+        for j in range(i + 1, n_active):
+            r = np.linalg.norm(pos[i] - pos[j])
+            if r > 0:
+                PE -= G * masses[i] * masses[j] / r
+    energy = KE + PE
+
+    L_vec = np.sum(masses[:, None] * np.cross(pos, vel), axis=0)
+    L_total = np.linalg.norm(L_vec)
+
+    p_vec = np.sum(masses[:, None] * vel, axis=0)
+    p_total = np.linalg.norm(p_vec)
+
+    M_total = masses.sum()
+    com = (masses[:, None] * pos).sum(axis=0) / M_total
+    if com_reference is not None:
+        com_drift = np.linalg.norm(com - np.asarray(com_reference))
+    else:
+        com_drift = np.linalg.norm(com)
+
+    return {
+        'energy': energy,
+        'L_total': L_total,
+        'L_vec': L_vec,
+        'p_total': p_total,
+        'com_drift': com_drift,
+    }

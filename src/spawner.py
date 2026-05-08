@@ -14,43 +14,76 @@ from scipy.stats import truncnorm, maxwell, norm, rv_continuous
 #   - Cranmer & Saar (2011) ApJ 741, 54
 # ---------------------------------------------------------------------------
 
-def parker_v_inf(T_corona, mu=0.6):
+def parker_v_inf(T_corona, M_star=1.989e30, R_star=6.957e8, mu=0.6,
+                  r_eval_factor=1000.0):
     """
-    Asymptotic Parker (1958) isothermal-wind velocity.
+    Asymptotic Parker (1958) isothermal-wind velocity, evaluated at a finite
+    distance r = r_eval_factor * R_star.
 
-    For an isothermal corona at temperature T_corona with mean molecular weight
-    mu (in proton masses), the asymptotic wind speed at infinity is roughly
-    a few times the isothermal sound speed. We adopt v_inf ~ 4 * c_s, which
-    reproduces ~400 km/s for T = 1.5 MK with mu = 0.6 (solar coronal value).
-    See Lamers & Cassinelli (1999) Ch. 5 for the full critical-point analysis.
+    The strict-isothermal Parker solution has v^2 ~ 4 c_s^2 ln(r/r_c) at large
+    radii (no finite asymptote). At a physically meaningful evaluation radius
+    of ~10^3 R_star this gives v_inf in the realistic 200-700 km/s range. We
+    take v_inf = max(2.5 c_s sqrt(ln(r/r_c)), 0.25 v_esc) so that a cool dense
+    star with subsonic launch still produces a sensible wind speed scaled to
+    its escape velocity.
 
     Arguments
     ---------
     T_corona : float
         Coronal temperature [K].
+    M_star : float
+        Stellar mass [kg]. Default solar.
+    R_star : float
+        Stellar radius [m]. Default solar.
     mu : float
-        Mean molecular weight in units of proton mass (default 0.6 for fully
-        ionized solar abundance plasma).
+        Mean molecular weight in units of proton mass (default 0.6).
+    r_eval_factor : float
+        Distance (in stellar radii) at which to evaluate the asymptotic v_inf.
 
     Returns
     -------
-    v_inf : float
-        Asymptotic radial wind speed [m/s].
+    v_inf : float [m/s]
+
+    References
+    ----------
+    Parker (1958) ApJ 128, 664.
+    Lamers & Cassinelli (1999) Ch. 5.
     """
+    k_B = 1.380649e-23
+    m_p = 1.673e-27
+    G = 6.6743e-11
+
+    c_s = np.sqrt(k_B * T_corona / (mu * m_p))
+    v_esc = np.sqrt(2.0 * G * M_star / R_star)
+    r_c = G * M_star / (2.0 * c_s ** 2)
+    r_eval = r_eval_factor * R_star
+
+    v_log = 2.5 * c_s * np.sqrt(max(np.log(r_eval / max(r_c, 1.0)), 0.0))
+    v_floor = 0.25 * v_esc
+    return max(v_log, v_floor)
+
+
+def parker_v_inf_simple(T_corona, mu=0.6):
+    """Backwards-compatible 4*c_s heuristic; retained for callers that don't
+    know stellar mass/radius. Will be removed once all callers migrate."""
     k_B = 1.380649e-23
     m_p = 1.673e-27
     c_s = np.sqrt(k_B * T_corona / (mu * m_p))
     return 4.0 * c_s
 
 
-def wood2005_mdot(R_star, age_Gyr=4.6, activity_scaling=True):
+def wood2005_mdot(R_star, age_Gyr=4.6, activity_scaling=True,
+                   t_sat_Gyr=0.7, sat_factor=100.0):
     """
     Stellar mass-loss rate from the Wood et al. (2005) X-ray flux--Mdot
-    calibration for cool main-sequence stars.
+    calibration for cool main-sequence stars, including the saturation
+    branch for young, fast-rotating stars.
 
-    Wood+2005 found Mdot per unit area scales with stellar X-ray surface flux
-    F_X^1.34, and F_X declines with stellar age following a Skumanich-like
-    rotation evolution. The solar value is Mdot_sun ~ 2e-14 Msun/yr.
+    Wood+2005 / Wood+2014: Mdot per unit area scales with stellar X-ray
+    surface flux F_X^1.34. F_X declines with age via a Skumanich-like
+    rotation evolution F_X ~ age^-1.74, so unsaturated Mdot ~ age^-2.33.
+    Below the saturation age (~0.7 Gyr for solar-type) the F_X relation
+    saturates and Mdot remains at ~100x the solar value (Wood+2014 update).
 
     Arguments
     ---------
@@ -59,23 +92,37 @@ def wood2005_mdot(R_star, age_Gyr=4.6, activity_scaling=True):
     age_Gyr : float
         Stellar age [Gyr]. Default 4.6 (solar age).
     activity_scaling : bool
-        If True, scale Mdot with age. If False, return area-scaled solar value.
+        If True, apply age-dependent scaling. If False, return area-scaled
+        solar value only.
+    t_sat_Gyr : float
+        Saturation age below which Mdot plateaus. Default 0.7 Gyr.
+    sat_factor : float
+        Multiplier (relative to solar) applied in the saturated regime.
+        Default 100x (Wood+2014).
 
     Returns
     -------
     Mdot : float
         Mass-loss rate [kg/s].
+
+    References
+    ----------
+    Wood et al. (2005) ApJ 628, L143.
+    Wood (2014) ASP Conf. Ser. 484, 379 (saturation update).
     """
     Mdot_solar = 2.0e-14 * 1.989e30 / (365.25 * 86400)   # kg/s
     R_solar = 6.957e8
     area_scaling = (R_star / R_solar) ** 2
 
-    if activity_scaling and age_Gyr > 0.7:
-        # Approximate: Mdot ~ F_X^1.34, F_X ~ age^-1.84, so Mdot ~ age^-2.5
-        # Saturated below ~0.7 Gyr (Wood+2005 Fig 2).
-        age_factor = (age_Gyr / 4.6) ** (-2.5)
+    if not activity_scaling:
+        return Mdot_solar * area_scaling
+
+    if age_Gyr > t_sat_Gyr:
+        # Unsaturated branch: Mdot ~ age^-2.33
+        age_factor = (age_Gyr / 4.6) ** (-2.33)
     else:
-        age_factor = 1.0
+        # Saturated branch: ~100x solar mass-loss per unit area
+        age_factor = sat_factor
 
     return Mdot_solar * area_scaling * age_factor
 
@@ -87,13 +134,16 @@ def companion_wind_parameters(M_star, R_star, T_corona=1.5e6,
     stellar physical parameters. Use this to translate a companion description
     into the launch parameters consumed by the wind spawner.
 
+    v_inf is computed via the physics-aware Parker formula (uses M_star, R_star
+    rather than fixed 4 c_s); Mdot via Wood+2005/2014 with saturation branch.
+
     Returns
     -------
     dict with keys 'Mdot' [kg/s], 'v_inf' [m/s], 'T_corona' [K].
     """
     return {
         'Mdot': wood2005_mdot(R_star, age_Gyr=age_Gyr),
-        'v_inf': parker_v_inf(T_corona, mu=mu),
+        'v_inf': parker_v_inf(T_corona, M_star=M_star, R_star=R_star, mu=mu),
         'T_corona': T_corona,
     }
 
@@ -119,10 +169,14 @@ def random_pos(radius, lat_dist='uniform', long_dist='uniform', n_samples=1, **k
         std = kwargs.get("std_latitude", 1)
         a, b = (lower - center) / std, (upper - center) / std
         latitudes = truncnorm.rvs(a, b, loc=center, scale=std, size=n_samples)
-    elif valid_dist[lat_dist] == 1:     # uniform
+    elif valid_dist[lat_dist] == 1:     # uniform on the sphere
+        # For an isotropic surface distribution we must sample sin(latitude)
+        # uniformly, not latitude itself. (Sampling latitude uniformly biases
+        # toward the poles since the surface area element is cos(lat) dlat.)
         lower = kwargs.get("lowest_latitude", -np.pi / 2)
         upper = kwargs.get("highest_latitude", np.pi / 2)
-        latitudes = np.random.uniform(lower, upper, size=n_samples)
+        u = np.random.uniform(np.sin(lower), np.sin(upper), size=n_samples)
+        latitudes = np.arcsin(u)
     else:
         print("An unexpected sampling error occurred")
         latitudes = None
