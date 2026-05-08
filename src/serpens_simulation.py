@@ -266,11 +266,25 @@ class SerpensSimulation(rebound.Simulation):
         """
         print("Initializing new simulation instance...")
 
-        self.integrator = "whfast"  # Fast and unbiased symplectic Wisdom-Holman integrator.
+        # Choose integrator: WHFast for Newtonian/distant-orbit regimes, MERCURIUS hybrid
+        # when GR is active so close BH approaches are handled by IAS15 substepping.
+        if GLOBAL_PARAMETERS.get('gr_enabled', False):
+            self.integrator = "mercurius"
+        else:
+            self.integrator = "whfast"
         self.collision = "direct"  # Brute force collision search and scales as O(N^2).
         self.collision_resolve = "merge"
+
+        # The fix_source_circular_orbit heartbeat zeroes eccentricity every step, which
+        # destroys the orbit of an eccentric binary. Refuse to enable it when GR is on
+        # (BH binary configurations are typically eccentric).
         if GLOBAL_PARAMETERS.get('fix_source_circular_orbit', False):
-            self.heartbeat = heartbeat
+            if GLOBAL_PARAMETERS.get('gr_enabled', False):
+                print("WARNING: fix_source_circular_orbit=True is incompatible with "
+                      "GR-enabled BH simulations (it zeroes binary eccentricity each step). "
+                      "Disabling heartbeat.")
+            else:
+                self.heartbeat = heartbeat
 
         # SI units:
         self.units = ('m', 's', 'kg')
@@ -309,9 +323,15 @@ class SerpensSimulation(rebound.Simulation):
             # Designate the GR source (massive body generating the field)
             gr_source_name = GLOBAL_PARAMETERS.get('gr_source')
             if gr_source_name is not None:
-                self.particles[gr_source_name].params["gr_source"] = 1
+                try:
+                    self.particles[gr_source_name].params["gr_source"] = 1
+                except rebound.ParticleNotFound:
+                    raise ValueError(
+                        f"GR source '{gr_source_name}' not found in simulation. "
+                        f"Available bodies: {list(self.obj_primary_dict.keys())}"
+                    )
             else:
-                # Default: first particle is the GR source
+                print("WARNING: No 'gr_source' specified; defaulting to particles[0].")
                 self.particles[0].params["gr_source"] = 1
 
             # Compute and store Schwarzschild radius and ISCO for particle removal
@@ -444,6 +464,10 @@ class SerpensSimulation(rebound.Simulation):
                             # Set parameter for REBOUNDx
                             self.particles[identifier].params["beta"] = species.beta
 
+        # Persist updated rebx state so the threaded advance_integrate copies inherit
+        # the per-particle beta values (otherwise radiation pressure is silently zero
+        # in the multi-thread path).
+        self.rebx.save("simdata/rebx.bin")
         return
 
     def object_to_source(self, name, species):

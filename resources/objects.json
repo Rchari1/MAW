@@ -81,20 +81,20 @@
   {
     "SYSTEM-NAME": "StellarBH-10",
     "SYSTEM-DESCRIPTION": "10 solar mass stellar black hole with companion star and accretion disk source",
-    "bh": {"m": 1.988e+31, "r": 29542, "r_schwarzschild": 29542, "r_isco": 88627},
+    "bh": {"m": 1.988e+31, "r": 88627, "r_schwarzschild": 29542, "r_isco": 88627},
     "companion": {"m": 1.988e+30, "r": 696340000, "a": 1.5e+12, "e": 0.1, "primary": "bh"},
     "disk_source": {"m": 1.0e+10, "r": 500000, "a": 5.0e+8, "e": 0.01, "primary": "bh"}
   },
   {
     "SYSTEM-NAME": "SgrA",
     "SYSTEM-DESCRIPTION": "Sagittarius A* supermassive black hole with S2-like orbiting star",
-    "bh": {"m": 8.26e+36, "r": 1.22e+10, "r_schwarzschild": 1.22e+10, "r_isco": 3.66e+10},
+    "bh": {"m": 8.26e+36, "r": 3.66e+10, "r_schwarzschild": 1.22e+10, "r_isco": 3.66e+10},
     "S2": {"m": 2.78e+31, "r": 4.87e+9, "a": 1.51e+14, "e": 0.8839, "inc": 2.34, "primary": "bh"}
   },
   {
     "SYSTEM-NAME": "GaiaBH1",
     "SYSTEM-DESCRIPTION": "Gaia BH1 (El-Badry et al. 2023) — 9.6 Msun dormant BH + 0.93 Msun G-type companion at 480 pc. P=185.6 d, e=0.45, i=126.6 deg.",
-    "bh": {"m": 1.909e+31, "r": 28349, "r_schwarzschild": 28349, "r_isco": 85048},
+    "bh": {"m": 1.909e+31, "r": 85048, "r_schwarzschild": 28349, "r_isco": 85048},
     "companion": {"m": 1.849e+30, "r": 6.557e+8, "a": 2.105e+11, "e": 0.451, "inc": 2.211, "primary": "bh"}
   }
 ]
