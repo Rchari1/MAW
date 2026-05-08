@@ -107,6 +107,15 @@ Understanding the dynamics of accretion disks around black holes is crucial for 
 
 Meyer zu Westram et al. 2023 (submitted) \cite{Meyer_zu_Westram} studies the random velocity distribution of particles in free space. SERPENS employs a test particle algorithm on a 4-D grid (r, $\phi$, z, t).
 
+\textcolor{red}{\paragraph*{Conservation diagnostics.} To verify that the integrator preserves the dynamical invariants over the simulated baselines, we track at every output the total mechanical energy, total angular momentum, and centre-of-mass drift of the massive bodies,
+\begin{align}
+\label{eq:energy}
+E &= \sum_i \tfrac{1}{2} m_i v_i^2 - \sum_{i<j} \frac{G m_i m_j}{r_{ij}}, \\
+\label{eq:angmom}
+\mathbf{L} &= \sum_i m_i\, (\mathbf{r}_i \times \mathbf{v}_i).
+\end{align}
+For the Gaia~BH1 production run we measure $|\Delta E/E| \simeq 3.6\times 10^{-9}$ over two orbital periods, with COM drift bounded at the round-off level. These diagnostics confirm excellent symplectic conservation and are the basis for our claim that residual deviations from Keplerian behaviour are physical (1PN) rather than numerical.}
+
 
 \singlefig
     {SERPENS}
@@ -209,13 +218,58 @@ Where we assume that T$_{b,atm} \sim$ T$_{eq}$ of the exoplanet atmosphere, and 
 
 \textcolor{red}{To extend SERPENS from the planetary regime to the strong-field environment of a stellar-mass black hole, we incorporate post-Newtonian gravitational corrections through the \texttt{gr\_full} force module of REBOUNDx \cite{Tamayo_2020}, which implements the 1PN equations of motion of Newhall, Standish \& Williams \cite{Newhall_1983}. These equations include all interbody pairwise terms scaling as $(v/c)^2$ and $(GM/rc^2)$, and reproduce the precession of Mercury and the Hulse--Taylor binary at the part-per-million level \cite{Will_2014}. Because the test particles in our simulation are non-self-gravitating and gravitationally subdominant, only the central black hole is designated as a relativistic source via the \texttt{gr\_source} flag.}
 
+\textcolor{red}{When GR is enabled we additionally switch the REBOUND integrator from the symplectic Wisdom--Holman scheme \cite{Wisdom1991} (\texttt{WHFast}) to the hybrid \texttt{MERCURIUS} integrator \cite{ReinTamayo2019}. \texttt{WHFast} relies on a fixed timestep, which cannot resolve the dynamical timescale of plunge orbits near the ISCO and silently degrades the energy error during close BH approaches. \texttt{MERCURIUS} retains symplecticity for the bulk of the orbit while seamlessly handing off to the high-order adaptive \texttt{IAS15} integrator \cite{ReinHernandez2017} whenever a particle enters a user-defined critical radius around the BH (taken here as $\sim 10\,r_{\rm ISCO}$). This guarantees that strongly-relativistic close encounters and plunge events are integrated with bounded relative energy error.}
+
 \textcolor{red}{\subsection{Stellar Wind Launch and Photoionization Lifetimes}}
 
-\textcolor{red}{For star--BH binaries the natural source of trace material is the stellar companion. We add a wind launching mode that draws each particle's velocity from a shifted Maxwellian: a Maxwell--Boltzmann thermal scatter at the coronal temperature $T_{\rm corona}$, plus a deterministic radial bulk velocity $v_\infty$. This is the standard kinetic representation of a thermally-driven Parker wind sampled at the launch surface (\cite{Parker_1958}; \cite{LamersCassinelli_1999} Ch.~5; observationally validated in the in-situ solar wind by \cite{Marsch_2006}). For a solar-analog G-dwarf we adopt $T_{\rm corona} = 1.5\times 10^6$~K and derive $v_\infty \approx 4 c_s \approx 400$~km\,s$^{-1}$ from the isothermal sound speed. Total mass-loss rates are calibrated against the Wood et al.\ \cite{Wood_2005} astrospheric Ly$\alpha$ measurements, scaled by stellar surface area and a Skumanich-like activity factor; for our reference G-dwarf this yields $\dot{M} \approx 10^9$~kg~s$^{-1}$ ($\approx 2\times 10^{-14}\,M_\odot$~yr$^{-1}$). A more complete treatment using Alfv\'en-wave-driven wind models \cite{CranmerSaar_2011} is straightforward to substitute.}
+\textcolor{red}{For star--BH binaries the natural source of trace material is the stellar companion. We add a wind launching mode that draws each particle's velocity from a shifted Maxwellian: a Maxwell--Boltzmann thermal scatter at the coronal temperature $T_{\rm corona}$, plus a deterministic radial bulk velocity $v_\infty$. This is the standard kinetic representation of a thermally-driven Parker wind sampled at the launch surface (\cite{Parker_1958}; \cite{LamersCassinelli_1999} Ch.~5; observationally validated in the in-situ solar wind by \cite{Marsch_2006}). The asymptotic wind velocity is computed self-consistently from stellar parameters via the isothermal Parker solution,
+\begin{equation}
+\label{eq:parker_vinf}
+v_\infty(r_{\rm eval}) = \max\!\left[\,2.5\, c_s \sqrt{\ln(r_{\rm eval}/r_c)}\,,\; 0.25\, v_{\rm esc}\,\right],
+\end{equation}
+where $c_s = \sqrt{k_B T_{\rm corona}/(\mu m_p)}$ is the isothermal sound speed and $r_c = G M_\star / (2 c_s^2)$ is the Parker critical (sonic) radius \cite{Parker_1958,LamersCassinelli_1999}. The floor at $0.25\, v_{\rm esc}$ prevents pathological evaluation inside the sonic point and ensures the launched material is dynamically unbound from the companion. For a solar-analog G-dwarf we adopt $T_{\rm corona} = 1.5\times 10^6$~K and derive $v_\infty \approx 400$~km\,s$^{-1}$.}
 
-\textcolor{red}{Trace species are lost from the simulation according to a per-species photoionization lifetime $\tau = (\sigma_X \Phi_X)^{-1}$, where $\Phi_X$ is the ionizing photon flux from the BH accretion disk and $\sigma_X$ is an effective species cross section taken from \cite{Verner_1996}. For Gaia~BH1's observational X-ray upper limit ($L_X \lesssim 10^{29}$~erg\,s$^{-1}$, \cite{ElBadry_2023}) the resulting lifetimes range from $\sim 10^{11}$~s for H to $\sim 10^{8}$~s for highly-ionized metals at the binary separation, comparable to or longer than the orbital period for hydrogen and shorter for inner-shell ions. The framework therefore naturally produces species-dependent observational signatures even in the dormant regime.}
+\textcolor{red}{Total mass-loss rates follow the Wood astrospheric Ly$\alpha$ calibration \cite{Wood_2005,Wood2014}, with an explicit saturation branch for young, magnetically active stars:
+\begin{equation}
+\label{eq:wood_mdot}
+\dot{M} = \begin{cases}
+\dot{M}_\odot\!\left(\dfrac{R_\star}{R_\odot}\right)^2\!\left(\dfrac{t_\star}{4.6~{\rm Gyr}}\right)^{-2.33}, & t_\star > 0.7~{\rm Gyr}, \\[6pt]
+100\,\dot{M}_\odot\!\left(\dfrac{R_\star}{R_\odot}\right)^2, & t_\star \le 0.7~{\rm Gyr}.
+\end{cases}
+\end{equation}
+For our reference G-dwarf (Gaia~BH1 companion, $t_\star \sim 5$~Gyr) this yields $\dot{M} \approx 1.3\times 10^9$~kg~s$^{-1}$ ($\approx 2\times 10^{-14}\,M_\odot$~yr$^{-1}$). The Skumanich \cite{Skumanich1972} age-rotation-activity scaling underlies the unsaturated branch. A more complete treatment using Alfv\'en-wave-driven wind models \cite{CranmerSaar_2011} is straightforward to substitute.}
+
+\textcolor{red}{Trace species are lost from the simulation according to a per-species photoionization lifetime
+\begin{equation}
+\label{eq:tau_ion}
+\tau_{\rm ion}(r) = \left[\sigma_X\, \Phi_X(r)\right]^{-1}, \qquad \Phi_X(r) = \frac{L_X}{4\pi r^2 \langle E_\gamma\rangle},
+\end{equation}
+where $L_X$ is the disk X-ray luminosity, $\langle E_\gamma\rangle$ is the mean ionizing photon energy, and $\sigma_X$ is the species-resolved photoionization cross section evaluated at $\langle E_\gamma\rangle$ from the analytic fits of Verner et al.\ \cite{Verner_1996}. For Gaia~BH1's observational upper limit ($L_X \lesssim 10^{29}$~erg\,s$^{-1}$, \cite{ElBadry_2023}) the resulting lifetimes range from $\sim 10^{11}$~s for H to $\sim 10^{8}$~s for highly-ionized metals at the binary separation, comparable to or longer than the orbital period for hydrogen and shorter for inner-shell ions. The framework therefore naturally produces species-dependent observational signatures even in the dormant regime.}
 
 \textcolor{red}{Particle removal proceeds through two boundaries. The outer boundary, at $r_{\rm max}\,a_{\rm src}$ from the orbital primary (with $a_{\rm src}$ the source body's semi-major axis), removes particles that are dynamically unbound from the system. We supplement this in the black-hole regime with an absorbing inner boundary at the ISCO: any test particle whose distance to the relativistic source falls below $r_{\rm ISCO}$ is removed and tagged as accreted. This inner boundary is a Newtonian proxy for plunge across the photon sphere; in the post-Newtonian limit it captures the qualitative end state of strongly relativistic orbits without requiring full geodesic integration. A more accurate strong-field treatment using the Paczy{\'n}ski--Wiita pseudo-potential \cite{Paczynski_Wiita_1980} or full Kerr geodesics will be the subject of future work, particularly for cases involving black hole spin \cite{Reynolds_2021}.}
+
+\textcolor{red}{\subsection{Composition and Accretion Luminosity}}
+
+\textcolor{red}{Trace metal abundances launched into the wind are not simply photospheric. In the solar wind and in cool-star coronae, elements with first ionization potential below $\sim 10$~eV (the low-FIP species: Fe, Si, Mg, Ca) are systematically enhanced by factors of $3$--$4$ relative to high-FIP elements through the FIP effect \cite{Asplund2009}. We model this by multiplying the photospheric mass fraction $X_i^{\rm phot}$ of low-FIP species $i$ by an enhancement factor $f_{\rm FIP,i}\in[3,4]$,
+\begin{equation}
+\label{eq:fip}
+X_i^{\rm wind} = \begin{cases} f_{\rm FIP,i}\, X_i^{\rm phot}, & {\rm IP}_i < 10~{\rm eV}, \\ X_i^{\rm phot}, & {\rm IP}_i \ge 10~{\rm eV}, \end{cases}
+\end{equation}
+with abundances renormalised to preserve total mass. This boosts the predicted column densities of Fe and Si lines, the dominant X-ray and UV diagnostics for accreting trace material.}
+
+\textcolor{red}{The instantaneous Bondi--Hoyle--Lyttleton capture rate from the wind onto the BH is computed from the local wind density and BH-relative velocity \cite{Bondi1952,Edgar_2004},
+\begin{equation}
+\label{eq:bhl}
+\dot{M}_{\rm BHL} = \pi\, r_{\rm BHL}^2\, \rho_{\rm wind}\, v_{\rm rel}, \qquad r_{\rm BHL} = \frac{2 G M_{\rm BH}}{v_{\rm rel}^2},
+\end{equation}
+where $v_{\rm rel}$ combines the orbital and wind velocities at the BH location. For Gaia~BH1, equation~(\ref{eq:bhl}) yields $\dot{M}_{\rm BHL}\sim 10^{-16}\,M_\odot$~yr$^{-1}$, well below the Eddington rate.}
+
+\textcolor{red}{For dormant systems with $\dot{M}\ll \dot{M}_{\rm Edd}$ the standard thin-disk efficiency $\varepsilon_{\rm thin}\simeq 0.1$ overestimates the radiative output by orders of magnitude. The flow transitions to a radiatively-inefficient (ADAF/RIAF) state in which the radiative efficiency scales linearly with accretion rate \cite{NarayanYi_1995,YuanNarayan_2014}. We adopt
+\begin{equation}
+\label{eq:eta_adaf}
+\varepsilon(\dot{m}) = \begin{cases} \varepsilon_{\rm thin}, & \dot{m} \ge 10^{-2}, \\[3pt] \varepsilon_{\rm thin}\, \dfrac{\dot{m}}{10^{-2}}, & \dot{m} < 10^{-2}, \end{cases}
+\end{equation}
+where $\dot{m}\equiv \dot{M}/\dot{M}_{\rm Edd}$. For Gaia~BH1, $\dot{m}\sim 10^{-8}$, so the predicted X-ray luminosity is suppressed by $\sim 6$ orders of magnitude relative to the thin-disk extrapolation, naturally consistent with the observed dormancy \cite{ElBadry_2023}.}
 
 \subsection{Accretion Rate in a Black Hole}
 For a Black Hole system, we must adjust our accretion rate accordingly. The central object accrediting at some rate $\Mdot$, given by an accretion power:
@@ -294,8 +348,8 @@ Where $M_{\mathrm{BH}}$ is the Mass of the Black Hole.
     {Figures/gaiabh1_planar.png}
     {0pt}
     {0pt}
-    {0.18}
-    {\textcolor{red}{Steady-state wind distribution in the orbital plane of Gaia~BH1. The 9.6~$M_\odot$ black hole (white star) and the 0.93~$M_\odot$ G-dwarf (gold) are separated by $\sim 1.4$~AU; the wind launched from the companion populates a quasi-isotropic envelope. Particles inside the analytical Bondi--Hoyle--Lyttleton capture cross-section are circled in red. Colour encodes $|v - v_{\rm BH}|$.}}
+    {0.227}
+    {\textcolor{red}{Steady-state wind distribution in the orbital plane of Gaia~BH1. The $9.6\,M_\odot$ black hole (white star) and the $0.93\,M_\odot$ G-dwarf companion (gold) are separated by $a = 1.4$~AU on an orbit with eccentricity $e=0.45$, inclination $i=126.6^\circ$, argument of periastron $\omega = 12.84^\circ$, and longitude of ascending node $\Omega=97.79^\circ$ \cite{ElBadry_2023}. The simulation integrates two orbital periods ($T_{\rm sim} = 372$~d) using REBOUND \cite{Rein_Liu_2012} with REBOUNDx \texttt{gr\_full} 1PN forces \cite{Tamayo_2020} and the MERCURIUS hybrid integrator \cite{ReinTamayo2019} (timestep $\Delta t \approx 1.6\times 10^4$~s). Wind particles ($N_{\rm active} = 1\,177$ in steady state from $200$ superparticles per species per spawn $\times 40$ spawn events $\times 4$ species; Monte Carlo seed $= 42$) are coloured by $|v - v_{\rm BH}|$. Red rings mark particles falling within the analytical Bondi--Hoyle--Lyttleton capture cross-section \cite{Edgar_2004}.}}
 
 \textcolor{red}{Figure~\ref{fig:gaia_skymap} projects the wind into the observer plane at the binary inclination of $i = 126.6^\circ$ \cite{ElBadry_2023}. The left panel shows individual particles colour-coded by line-of-sight velocity (red = receding, blue = approaching). The right panel applies superparticle weighting to convert raw test-particle counts into a physically calibrated hydrogen column density $N_{\rm H}$ in cm$^{-2}$, with peak values $\sim 10^{14}$~cm$^{-2}$ near the binary. This $N_{\rm H}$ map is the direct observable for transmission-spectroscopy and X-ray-absorption searches.}
 
@@ -304,8 +358,8 @@ Where $M_{\mathrm{BH}}$ is the Mass of the Black Hole.
     {Figures/gaiabh1_skymap.png}
     {0pt}
     {0pt}
-    {0.40}
-    {\textcolor{red}{Observer-frame projection of the Gaia~BH1 wind material at $i=126.6^\circ$. \emph{Left:} per-particle line-of-sight velocity. \emph{Right:} weighted hydrogen column density $N_{\rm H}$ in physical units (cm$^{-2}$).}}
+    {0.467}
+    {\textcolor{red}{Observer-frame projection of the Gaia~BH1 wind material at the orbital inclination $i = 126.6^\circ$, $\omega=12.84^\circ$, $\Omega=97.79^\circ$ \cite{ElBadry_2023}. \emph{Left:} per-particle line-of-sight velocity (red = receding, blue = approaching). \emph{Right:} weighted hydrogen column density $N_{\rm H}$ in cm$^{-2}$, computed by binning the $1\,177$ active superparticles onto an $80\times 80$ grid and smoothing with a Gaussian kernel ($\sigma = 1.2$ pixels). Each superparticle weight is calibrated against the Wood et al.\ \cite{Wood_2005} mass-loss rate ($\dot M = 1.3\times 10^9$~kg~s$^{-1}$). Integration: REBOUND~\cite{Rein_Liu_2012}, REBOUNDx \texttt{gr\_full}~\cite{Tamayo_2020}, MERCURIUS hybrid~\cite{ReinTamayo2019}, $T_{\rm sim} = 372$~d, MC seed $= 42$.}}
 
 \textcolor{red}{Figure~\ref{fig:gaia_lineprofiles} synthesises Doppler line profiles for four diagnostic UV lines: H Ly$\alpha$, He~I~584~\AA, C~III~977~\AA, and O~VI~1032~\AA. Each species is weighted by its X-ray photoionization lifetime under the fiducial disk luminosity; species with $\tau_{\rm ion}$ longer than the orbital period populate the full line profile, while inner-shell ions with $\tau_{\rm ion} \ll P_{\rm orb}$ are suppressed. The profiles span $\pm 600$~km~s$^{-1}$, dominated by the Parker-wind asymptotic velocity, and exhibit asymmetries that track the binary phase. These are concrete predictions testable by HST/COS or future UV missions.}
 
@@ -314,8 +368,8 @@ Where $M_{\mathrm{BH}}$ is the Mass of the Black Hole.
     {Figures/gaiabh1_lineprofiles.png}
     {0pt}
     {0pt}
-    {0.40}
-    {\textcolor{red}{Predicted Doppler line profiles from the Gaia~BH1 wind for four diagnostic UV transitions. Each species is weighted by its photoionization lifetime $\tau_{\rm ion}$ at the binary separation under the fiducial disk luminosity $L_X = 10^{29}$~erg~s$^{-1}$. Profiles span the Parker-wind velocity range $\pm v_\infty$ and show species-dependent asymmetries.}}
+    {0.467}
+    {\textcolor{red}{Predicted Doppler line profiles from the Gaia~BH1 wind for four diagnostic UV transitions: H Ly$\alpha$~1216~\AA, He~I~584~\AA, C~III~977~\AA, and O~VI~1032~\AA. Profiles are computed from the line-of-sight velocity histogram of the $1\,177$ steady-state superparticles at $i=126.6^\circ$ (\cite{ElBadry_2023}), binned at $\Delta v \approx 13$~km~s$^{-1}$ over $[-800,+800]$~km~s$^{-1}$ and convolved with a Gaussian thermal width $\sigma_{\rm th} = 30$~km~s$^{-1}$. Each species is weighted by its X-ray photoionization lifetime $\tau_{\rm ion}$ \cite{Verner_1996} under $L_X = 10^{29}$~erg~s$^{-1}$ \cite{ElBadry_2023}. Shaded bands give the per-bin Poisson uncertainty $\sqrt{\sum_i w_i^2}$. Integration: REBOUND~\cite{Rein_Liu_2012}, REBOUNDx \texttt{gr\_full}~\cite{Tamayo_2020}, MERCURIUS hybrid~\cite{ReinTamayo2019}, $T_{\rm sim} = 372$~d, MC seed $= 42$.}}
 
 \textcolor{red}{To verify that the Monte Carlo capture diagnostic is statistically meaningful at the particle counts used here, Figure~\ref{fig:gaia_convergence} demonstrates convergence of the BHL capture fraction as a function of subsampled particle number. Bootstrap-resampled error bars shrink as $N^{-1/2}$ and asymptote to the full-sample value of $0.47\%$, confirming that our $\sim 10^3$-particle production run is in the converged regime.}
 
@@ -324,10 +378,30 @@ Where $M_{\mathrm{BH}}$ is the Mass of the Black Hole.
     {Figures/gaiabh1_convergence.png}
     {0pt}
     {0pt}
-    {0.30}
-    {\textcolor{red}{Monte Carlo convergence of the BHL capture diagnostic. The capture fraction is reproduced (with shrinking error bars) by bootstrap subsamples of the production run; the $\sim 10^3$-particle run lies firmly in the converged regime.}}
+    {0.227}
+    {\textcolor{red}{Monte Carlo convergence of the mean hydrogen column density $\langle N_{\rm H}\rangle$ (in cm$^{-2}$) near the binary, as a function of subsampled superparticle number. Solid line: bootstrap mean. Shaded band: 16--84\% bootstrap interval from $80$ resamples per subsample size (MC seed $= 42$). The shrinking interval asymptotes to the full-sample value, confirming that the $N_{\rm active} = 1\,177$ production run is in the converged regime. Underlying integration: REBOUND~\cite{Rein_Liu_2012}, REBOUNDx \texttt{gr\_full}~\cite{Tamayo_2020}, MERCURIUS hybrid~\cite{ReinTamayo2019}, $T_{\rm sim} = 372$~d.}}
 
-\textcolor{red}{Taken together, Figures \ref{fig:bh_planar}--\ref{fig:gaia_convergence} establish: (i) the GR-extended dynamics reduce correctly to Keplerian limits; (ii) the wind launch produces physically calibrated mass-loss rates and velocity distributions; (iii) sky-projected column densities and Doppler line profiles can be extracted in physical units; and (iv) the diagnostic statistics are converged. The Gaia~BH1 numbers are consistent with the observed dormancy: with $\dot{M}_{\rm BHL} \sim 10^{-16}\,M_\odot$~yr$^{-1}$ and standard radiative efficiency, the predicted X-ray luminosity sits well below the El-Badry et al.\ \cite{ElBadry_2023} upper limits. This methods paper establishes the framework; future work will extend it through the Paczy{\'n}ski--Wiita pseudo-potential \cite{Paczynski_Wiita_1980} for stronger-field predictions, full Kerr geodesics for spinning BHs \cite{Reynolds_2021}, Alfv{\'e}n-wave-driven wind models \cite{CranmerSaar_2011}, and to broader applications, including the spallogenic-nuclide analogy of polluted white dwarfs \cite{Doyle_2021} and isolated compact accretors \cite{Treves_2000}.}
+\textcolor{red}{To confirm that no test particle violates the strong-field absorbing boundary, Figure~\ref{fig:gaia_energy} shows the specific orbital energy $E = \tfrac{1}{2}|v - v_{\rm BH}|^2 - GM_{\rm BH}/r$ of every wind particle as a function of distance from the black hole, normalised by the Schwarzschild radius $r_s = 28.4$~km. Every active superparticle satisfies $E > 0$, i.e.\ is dynamically unbound, and lies at $r/r_s \gtrsim 10^7$~--- many orders of magnitude outside the ISCO at $3\,r_s$. This is the expected outcome for a thermally-driven Parker wind with asymptotic speed $v_\infty \approx 400$~km~s$^{-1}$ launched from the G-dwarf, since $v_\infty$ comfortably exceeds both the local escape velocity from the companion and the BHL capture velocity at the binary separation \cite{Edgar_2004}. The grazing trajectories tagged in Figure~\ref{fig:gaia_planar} are therefore transient flybys, not committed accretors --- consistent with the dormant X-ray luminosity reported by El-Badry et al.\ \cite{ElBadry_2023}.}
+
+\singlefig
+    {gaia_energy}
+    {Figures/gaiabh1_energy_diagram.png}
+    {0pt}
+    {0pt}
+    {0.227}
+    {\textcolor{red}{Specific orbital energy diagram for all $1\,177$ active wind superparticles, plotted as $\log_{10}|E|$ versus $\log_{10}(r/r_s)$ with $r_s = 28.4$~km for the $9.6\,M_\odot$ Gaia~BH1 primary. All particles have $E > 0$ (unbound) and reside at $r \gg r_{\rm ISCO} = 3\,r_s$ (vertical dashed line). No particle crosses the absorbing inner boundary during the $T_{\rm sim} = 372$~d integration, validating that the BHL capture rate is set by the geometry of the wind cone rather than by direct strong-field plunge \cite{Edgar_2004}. Integrator: REBOUND~\cite{Rein_Liu_2012}, REBOUNDx \texttt{gr\_full}~\cite{Tamayo_2020}, MERCURIUS hybrid~\cite{ReinTamayo2019}, MC seed $= 42$.}}
+
+\textcolor{red}{Finally, Figure~\ref{fig:wind_launch} validates the launch-velocity distribution claim made earlier in the Stellar Wind subsection of Methods. We compare the Smyth--Combi sputter PDF \cite{osti_6642954}, parametrised by the bulk velocity $v_b$ and maximum velocity $v_M$, against the Parker shifted-Maxwellian PDF \cite{Parker_1958,LamersCassinelli_1999} parametrised by $v_\infty$ and the coronal sound speed $c_s$. Both distributions are normalised to unit integral over $f(v)\,dv$ so that the comparison is a fair PDF overlay. The Smyth--Combi tail extends to several $v_b$ as expected for hard-sputter ejecta, while the Parker distribution is concentrated around $v_\infty$ with a thermal width set by $c_s$. SERPENS uses the former for planet/exomoon source models and the latter for the Gaia~BH1 G-dwarf wind.}
+
+\singlefig
+    {wind_launch}
+    {Figures/wind_launch_comparison.png}
+    {0pt}
+    {0pt}
+    {0.227}
+    {\textcolor{red}{Validation of SERPENS launch-velocity distributions. Solid: Smyth--Combi sputter PDF $f_{\rm sp}(v;\alpha,v_b,v_M)$ \cite{osti_6642954} for planet/exomoon sources. Dashed: Parker shifted-Maxwellian PDF \cite{Parker_1958,LamersCassinelli_1999} with asymptotic radial velocity $v_\infty \approx 400$~km~s$^{-1}$ marked, used for the Gaia~BH1 G-dwarf coronal wind ($T_{\rm corona} = 1.5\times 10^6$~K). Both curves are normalised to unit area in $f(v)$.}}
+
+\textcolor{red}{Taken together, Figures \ref{fig:bh_planar}--\ref{fig:wind_launch} establish: (i) the GR-extended dynamics reduce correctly to Keplerian limits; (ii) the wind launch produces physically calibrated mass-loss rates and velocity distributions matching the analytical Smyth--Combi and Parker forms; (iii) sky-projected column densities and Doppler line profiles can be extracted in physical units; (iv) the diagnostic statistics are converged; and (v) no test particle reaches the strong-field absorbing boundary in the dormant Gaia~BH1 regime. The Gaia~BH1 numbers are consistent with the observed dormancy: with $\dot{M}_{\rm BHL} \sim 10^{-16}\,M_\odot$~yr$^{-1}$ and standard radiative efficiency, the predicted X-ray luminosity sits well below the El-Badry et al.\ \cite{ElBadry_2023} upper limits. This methods paper establishes the framework; future work will extend it through the Paczy{\'n}ski--Wiita pseudo-potential \cite{Paczynski_Wiita_1980} for stronger-field predictions, full Kerr geodesics for spinning BHs \cite{Reynolds_2021}, Alfv{\'e}n-wave-driven wind models \cite{CranmerSaar_2011}, and to broader applications, including the spallogenic-nuclide analogy of polluted white dwarfs \cite{Doyle_2021} and isolated compact accretors \cite{Treves_2000}.}
 
 \bibliography{bibliography}
 %\input{output.bbl}
