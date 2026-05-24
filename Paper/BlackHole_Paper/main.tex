@@ -17,31 +17,39 @@
 
 
 
-% Figure insertion macros
+% Figure insertion macros.
+% NOTE: argument #5 (scale) is retained for backwards compatibility but
+% intentionally ignored. All figures are now sized to \columnwidth (single)
+% or \textwidth (double) so the layout works regardless of the source PNG
+% DPI metadata.
 \newcommand{\singlefig}[6]{%
 \begin{figure}[tpb]\vspace{#3}%
-\includegraphics*[scale=#5]{#2}%
+\centering
+\includegraphics*[width=\columnwidth]{#2}%
 \caption{\label{fig:#1} #6}%
 \vspace{#4}%
 \end{figure}}
 
 \newcommand{\singlefigbottom}[6]{%
 \begin{figure}[b]\vspace{#3}%
-\includegraphics*[scale=#5]{#2}%
+\centering
+\includegraphics*[width=\columnwidth]{#2}%
 \caption{\label{fig:#1} #6}%
 \vspace{#4}%
 \end{figure}}
 
 \newcommand{\doublefig}[6]{%
 \begin{figure*}[tpb] \vspace{#3}%
-\includegraphics*[scale=#5]{#2}%
+\centering
+\includegraphics*[width=\textwidth]{#2}%
 \caption{\label{fig:#1} #6}
 \vspace{#4}
 \end{figure*}}
 
 \newcommand{\doublefigbottom}[6]{%
 \begin{figure*}[b] \vspace{#3}%
-\includegraphics*[scale=#5]{#2}%
+\centering
+\includegraphics*[width=\textwidth]{#2}%
 \caption{\label{fig:#1} #6}
 \vspace{#4}
 \end{figure*}}
@@ -303,17 +311,23 @@ Where $M_{\mathrm{BH}}$ is the Mass of the Black Hole.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Results}
 
+\textcolor{red}{\paragraph*{Scope of the validation tests.} The figures in this section serve four distinct scientific purposes, each addressing a question a referee or future user will ask before trusting predictions made with this framework:
+(1)~\emph{Does the integrator reduce correctly to the well-understood Newtonian limit far from the black hole?} (Figures~\ref{fig:bh_planar}, \ref{fig:bh_density}, \ref{fig:bh_kepler}, using the \texttt{StellarBH-10} benchmark.) This matters because any prediction in the strong-field regime is only credible if the code recovers the textbook Kepler problem when GR effects are vanishingly small. Failure here would indicate a software bug, not new physics.
+(2)~\emph{Does the framework produce dynamically consistent predictions for a real astrophysical target?} (Figures~\ref{fig:gaia_planar}, \ref{fig:gaia_skymap}, using Gaia BH1.) This is the first step toward a publishable prediction --- showing that the pipeline runs end to end on a system where the binary parameters, distance, and inclination are observationally known.
+(3)~\emph{What would an observer actually see?} (Figures~\ref{fig:gaia_skymap}, \ref{fig:gaia_lineprofiles}.) Translating a particle distribution into a column density in cm$^{-2}$ and into Doppler-shifted UV line profiles is the entire point of the methodology --- it is the link between a Monte~Carlo simulation and an HST/COS or future-mission spectrum.
+(4)~\emph{Are the numerical results converged and physically self-consistent?} (Figures~\ref{fig:gaia_convergence}, \ref{fig:gaia_energy}, \ref{fig:wind_launch}.) Convergence tests guard against under-sampling, the energy diagram demonstrates that no particle artificially plunges through the strong-field boundary, and the launch-distribution comparison documents the choice of source physics. Together they are the methods-paper equivalent of unit tests: a referee can audit each figure against an analytic expectation.}
+
 \textcolor{red}{We present a first-order benchmark simulation of the GR-extended SERPENS pipeline using the \texttt{StellarBH-10} system: a $10\,M_\odot$ Schwarzschild black hole with a circumbinary mass-loss source on a near-circular orbit at $a = 5\times 10^{8}$~m ($\sim 1.7\times 10^{4}\,r_s$). Hydrogen is sputtered from the source according to the Smyth velocity distribution, with bulk and maximum velocities set to $5\%$ and $30\%$ of the local Keplerian orbital velocity respectively, in order to populate a representative range of bound test-particle orbits. We integrate for eight source-orbit periods using the symplectic Wisdom--Holman scheme of REBOUND \cite{Rein_Liu_2012} together with the 1PN corrections described above, generating $\sim 3\,200$ active test particles.}
 
 \textcolor{red}{Figure~\ref{fig:bh_planar} displays the resulting particle distribution in the orbital plane. The full system view (left) reveals a coherent ring at the source's orbital radius ($\sim 1.7\times 10^{4}\,r_s$), populated by orbital shear of sputtered material; the colour scale tracks particle speed and recovers the expected Keplerian gradient across the ring. The right panel zooms into the strong-field region, showing the event horizon, photon sphere ($1.5\,r_s$) and ISCO ($3\,r_s$). For this benchmark setup no test particles are advected into the ISCO during the simulated interval, which is consistent with the fact that the source orbit has small eccentricity and the sputter velocities, while large in absolute terms ($\sim 10^5$~m\,s$^{-1}$), are insufficient to overcome the orbital angular momentum barrier on these timescales.}
 
-\singlefig
+\doublefig
     {bh_planar}
     {Figures/bh_planar_view.png}
     {0pt}
     {0pt}
-    {0.10}
-    {\textcolor{red}{Particle distribution in the orbital plane of the \texttt{StellarBH-10} benchmark system. \emph{Left:} full-system view with the disk source (green triangle) and source orbit (dashed). The ring of $\sim 3200$ test particles tracks the source orbit; colour encodes speed, with the inner edge of the ring moving faster as expected from Keplerian dynamics. \emph{Right:} zoom into the strong-field region of the black hole, with the event horizon (white disk), photon sphere (dotted, $1.5\,r_s$) and ISCO (dashed red, $3\,r_s$) marked. All distances are in units of the Schwarzschild radius $r_s$.}}
+    {1.0}
+    {\textcolor{red}{Particle distribution in the orbital plane of the \texttt{StellarBH-10} benchmark system (a $10\,M_\odot$ Schwarzschild black hole with a circumbinary mass-loss source at $\sim 1.7\times 10^4\,r_s$). \emph{Left:} full-system view with the disk source (green triangle) and the ring of $\sim 1\,900$ test particles tracking the source orbit; colour encodes $|v - v_{\rm BH}|$, with inner particles moving faster as expected from Keplerian dynamics. \emph{Right:} zoom into the strong-field region of the black hole showing the event horizon at $r_s$ (filled black), the photon sphere at $1.5\,r_s$ (dotted), and the innermost stable circular orbit at $3\,r_s$ (dashed red) \cite{Bardeen_1972}. All distances are in units of the Schwarzschild radius $r_s$.}}
 
 \textcolor{red}{Figure~\ref{fig:bh_density} shows two-dimensional column density maps of the same particle distribution, viewed face-on (left) and edge-on (right). The face-on view confirms the ring morphology and exposes azimuthal density variations associated with the source's orbital phase. The edge-on (line-of-sight) projection reveals a thin disk: particles remain tightly confined near $z=0$ because both the source orbit and the sputter velocities preserve the orbital plane to within $\sim 100\,r_s$ in vertical extent. This geometry is directly relevant for transit-spectroscopy predictions, since the optical depth integrated along the line of sight is concentrated in a narrow band.}
 
@@ -327,13 +341,13 @@ Where $M_{\mathrm{BH}}$ is the Mass of the Black Hole.
 
 \textcolor{red}{To verify that the post-Newtonian corrections have not introduced spurious dynamics, we compare the radial speed distribution of test particles to the analytical Keplerian relation $v_K = \sqrt{GM/r}$ in Figure~\ref{fig:bh_kepler}. The radial histogram (left) is sharply peaked at the source orbital radius with broader, asymmetric wings extending inward to $\sim 7\times 10^{3}\,r_s$ and outward to $\sim 6\times 10^{4}\,r_s$. The right panel demonstrates that the bulk of bound particles trace the Keplerian relation closely, with a velocity scatter of $\sim 10\%$ that reflects the imposed sputter velocity distribution rather than numerical drift. The $\sim 1\%$-level deviations at the inner radial extreme are consistent with first-order periastron precession contributions \cite{Will_2014}; resolving these into a clean GR signature will require longer integrations and is deferred to future work.}
 
-\singlefig
+\doublefig
     {bh_kepler}
     {Figures/bh_radial_kepler.png}
     {0pt}
     {0pt}
-    {0.20}
-    {\textcolor{red}{Validation of the GR-extended dynamics. \emph{Left:} radial histogram of test-particle distances to the black hole. Vertical lines mark the event horizon, ISCO, and source orbital radius. \emph{Right:} test-particle speed versus distance from the black hole (blue points), overlaid with the analytical Keplerian curve $v = \sqrt{GM/r}$ (red dashed). Bound particles trace the Keplerian relation with $\sim 10\%$ velocity scatter consistent with the imposed sputter distribution.}}
+    {1.0}
+    {\textcolor{red}{Validation of the GR-extended dynamics for the \texttt{StellarBH-10} benchmark. \emph{Left:} radial histogram of test-particle distances to the black hole (log $x$-axis). Vertical lines mark the event horizon, the ISCO at $3\,r_s$, and the source orbital radius. \emph{Right:} test-particle speed versus distance from the black hole, overlaid with the analytical Keplerian curve $v = \sqrt{GM/r}$ (red dashed). Bound particles trace the Keplerian relation, confirming the Newtonian-limit behaviour of our 1PN integration scheme. Residual deviations are bounded by symplectic energy conservation ($|\Delta E/E| \simeq 3.6\times 10^{-9}$ over 2 orbital periods; see equations~\ref{eq:energy}--\ref{eq:angmom}).}}
 
 \textcolor{red}{This benchmark establishes that the GR-extended SERPENS pipeline produces dynamically self-consistent particle distributions in the strong-field regime. We now apply the full pipeline (GR + stellar wind + photoionization lifetimes + observer projection) to Gaia~BH1 as a proof-of-concept demonstration that the framework can produce concrete observable predictions for a real star--BH binary.}
 
@@ -400,6 +414,8 @@ Where $M_{\mathrm{BH}}$ is the Mass of the Black Hole.
     {0pt}
     {0.227}
     {\textcolor{red}{Validation of SERPENS launch-velocity distributions. Solid: Smyth--Combi sputter PDF $f_{\rm sp}(v;\alpha,v_b,v_M)$ \cite{osti_6642954} for planet/exomoon sources. Dashed: Parker shifted-Maxwellian PDF \cite{Parker_1958,LamersCassinelli_1999} with asymptotic radial velocity $v_\infty \approx 400$~km~s$^{-1}$ marked, used for the Gaia~BH1 G-dwarf coronal wind ($T_{\rm corona} = 1.5\times 10^6$~K). Both curves are normalised to unit area in $f(v)$.}}
+
+\textcolor{red}{\paragraph*{Scientific significance.} The most important physical statement these figures collectively make is that \emph{a kinetic test-particle Monte Carlo can produce non-trivial, falsifiable predictions for compact-object binaries even in the dormant regime, where conventional hydrodynamic accretion-disk models are silent.} For Gaia BH1 we predict (i) an inferred X-ray luminosity of $L_X \sim 10^{22}$~erg~s$^{-1}$ after applying the ADAF efficiency suppression of equation~\ref{eq:eta_adaf} --- $\sim 7$ orders of magnitude below the observational upper limit \cite{ElBadry_2023}, naturally consistent with dormancy; (ii) a column density of $N_{\rm H} \sim 10^{13}$--$10^{14}$~cm$^{-2}$ at the binary, accessible to deep HST/COS or future LUVOIR/HWO Ly$\alpha$ campaigns; and (iii) Doppler line profiles spanning $\pm 600$~km~s$^{-1}$ with species-dependent shapes set by the photoionization lifetimes of equation~\ref{eq:tau_ion}. Critically, the Gaia BH1 wind we model is geometrically optically thin and dynamically unbound (Figure~\ref{fig:gaia_energy}), which means the predictions are first-order observable signatures rather than back-of-the-envelope estimates: they depend explicitly on the binary geometry, the FIP-corrected wind composition (equation~\ref{eq:fip}), and the post-Newtonian dynamics near the BH. None of these ingredients is present in conventional treatments of accretion-driven X-ray binaries, where the disk midplane dominates the observables and the wind is treated as a boundary condition. The methods established here are immediately applicable to the $\sim 10^2$ additional dormant BH binaries Gaia is expected to deliver in DR4 \cite{ElBadry_2023}, and provide a quantitative substrate for the broader analogy to polluted-white-dwarf accretion of icy bodies \cite{Doyle_2021}.}
 
 \textcolor{red}{Taken together, Figures \ref{fig:bh_planar}--\ref{fig:wind_launch} establish: (i) the GR-extended dynamics reduce correctly to Keplerian limits; (ii) the wind launch produces physically calibrated mass-loss rates and velocity distributions matching the analytical Smyth--Combi and Parker forms; (iii) sky-projected column densities and Doppler line profiles can be extracted in physical units; (iv) the diagnostic statistics are converged; and (v) no test particle reaches the strong-field absorbing boundary in the dormant Gaia~BH1 regime. The Gaia~BH1 numbers are consistent with the observed dormancy: with $\dot{M}_{\rm BHL} \sim 10^{-16}\,M_\odot$~yr$^{-1}$ and standard radiative efficiency, the predicted X-ray luminosity sits well below the El-Badry et al.\ \cite{ElBadry_2023} upper limits. This methods paper establishes the framework; future work will extend it through the Paczy{\'n}ski--Wiita pseudo-potential \cite{Paczynski_Wiita_1980} for stronger-field predictions, full Kerr geodesics for spinning BHs \cite{Reynolds_2021}, Alfv{\'e}n-wave-driven wind models \cite{CranmerSaar_2011}, and to broader applications, including the spallogenic-nuclide analogy of polluted white dwarfs \cite{Doyle_2021} and isolated compact accretors \cite{Treves_2000}.}
 
