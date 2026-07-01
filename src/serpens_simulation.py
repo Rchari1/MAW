@@ -541,14 +541,24 @@ class SerpensSimulation(rebound.Simulation):
 
         proc_indices = [list(range(self.N_active)) + test_split.tolist() for test_split in particle_splits]
 
+        # Inherit the parent integrator so GR runs (MERCURIUS hybrid) actually
+        # use MERCURIUS in the threaded integration path. Previously this was
+        # hardcoded to "whfast", which silently disabled the hybrid close-encounter
+        # handling that the GR configuration in rebound_setup selects.
+        integrator = self.integrator
+
         processes = []
         processes_rebx = []
         for i in range(threads_count):
             copy = self.copy()
 
-            copy.integrator = "whfast"
+            copy.integrator = integrator
             copy.collision = "direct"
             copy.collision_resolve = "merge"
+            if integrator == "mercurius":
+                # Hand off to IAS15 when a particle comes within a few Hill radii
+                # of the black hole (close-encounter / plunge regime).
+                copy.ri_mercurius.r_crit_hill = 3.0
             if GLOBAL_PARAMETERS.get("fix_source_circular_orbit", False):
                 copy.heartbeat = heartbeat
             copy_rebx = reboundx.Extras(copy, "simdata/rebx.bin")
