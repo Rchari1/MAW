@@ -27,7 +27,7 @@
 % or \textwidth (double) so the layout works regardless of the source PNG
 % DPI metadata.
 \newcommand{\singlefig}[6]{%
-\begin{figure}[!htbp]\vspace{#3}%
+\begin{figure}[!tb]\vspace{#3}%
 \centering
 \includegraphics*[width=\columnwidth]{#2}%
 \caption{\label{fig:#1} #6}%
@@ -35,7 +35,7 @@
 \end{figure}}
 
 \newcommand{\doublefig}[6]{%
-\begin{figure*}[!tbp] \vspace{#3}%
+\begin{figure*}[!t] \vspace{#3}%
 \centering
 \includegraphics*[width=\textwidth]{#2}%
 \caption{\label{fig:#1} #6}
